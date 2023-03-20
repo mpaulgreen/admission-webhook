@@ -20,7 +20,7 @@ spec:
           image: quay.io/mpaulgreen/webhook0.0.1
           imagePullPolicy: Always
           ports:
-            - containerPort: 8443
+            - containerPort: 9443
           volumeMounts:
             - name: tls-certs
               mountPath: /etc/certs
@@ -40,4 +40,4 @@ spec:
     app: webhook-server
   ports:
     - port: 443
-      targetPort: 8443
+      targetPort: 9443
