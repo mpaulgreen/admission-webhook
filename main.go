@@ -6,15 +6,15 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"encoding/json"
+
+	"github.com/Bashayr29/k8s-admission-controller/api/v1alpha1"
 	"github.com/rs/zerolog/log"
 	admission "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	v1 "k8s.io/kubernetes/pkg/apis/apps/v1"
-
-	"encoding/json"
 )
 
 var (
@@ -27,7 +27,7 @@ var (
 func init() {
 	_ = corev1.AddToScheme(runtimeScheme)
 	_ = admission.AddToScheme(runtimeScheme)
-	_ = v1.AddToScheme(runtimeScheme)
+
 }
 
 type admitv1Func func(admission.AdmissionReview) *admission.AdmissionResponse
@@ -103,12 +103,41 @@ func serveValidate(w http.ResponseWriter, r *http.Request) {
 // adds prefix 'prod' to every incoming Deployment, example: prod-apps
 func mutate(ar admission.AdmissionReview) *admission.AdmissionResponse {
 	log.Info().Msgf("mutating deployments")
-	return &admission.AdmissionResponse{
-		Allowed: true, Result: &metav1.Status{
-			Message: "Testing mutating hook",
-		},
+
+	memcachedResource := metav1.GroupVersionResource{Group: "cache.example.com", Version: "v1alpha1", Resource: "memcacheds"}
+
+	if ar.Request.Resource != memcachedResource {
+		log.Error().Msgf("expect resource to be %s", memcachedResource)
+		return nil
 	}
 
+	raw := ar.Request.Object.Raw
+	memcached := v1alpha1.Memcached{}
+
+	if _, _, err := deserializer.Decode(raw, nil, &memcached); err != nil {
+		log.Err(err)
+		return &admission.AdmissionResponse{
+			Result: &metav1.Status{
+				Message: err.Error(),
+			},
+		}
+	}
+
+	log.Info().Msgf("Logging Memcached %s", memcached)
+
+	if memcached.Spec.Size == 0 {
+		return &admission.AdmissionResponse{
+			Result: &metav1.Status{
+				Message: "size needs to be > 0",
+			},
+		}
+	}
+
+	return &admission.AdmissionResponse{
+		Allowed: true, Result: &metav1.Status{
+			Message: "Testing mutation hook",
+		},
+	}
 }
 
 // verify if a Deployment has the 'prod' prefix name
